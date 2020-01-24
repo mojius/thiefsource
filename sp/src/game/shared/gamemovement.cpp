@@ -1281,7 +1281,7 @@ void CGameMovement::CheckWaterJump( void )
 	Vector	flatvelocity;
 	float curspeed;
 
-	AngleVectors( mv->m_vecViewAngles, &forward );  // Determine movement angles
+	AngleVectors( mv->m_vecViewAngles, &forward );  // Determine movement angles. I wanna say this gets a vector from where the player is looking/facing?
 
 	// Already water jumping.
 	if (player->m_flWaterJumpTime)
@@ -1318,27 +1318,27 @@ void CGameMovement::CheckWaterJump( void )
 	
 	trace_t tr;
 	TracePlayerBBox( vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr );
-	if ( tr.fraction < 1.0 )		// solid at waist
+	if ( tr.fraction < 1.0 )		// solid at waist, time less than 1 = hit something?
 	{
-		IPhysicsObject *pPhysObj = tr.m_pEnt->VPhysicsGetObject();
+		IPhysicsObject *pPhysObj = tr.m_pEnt->VPhysicsGetObject(); //Did you just run into a physics object??? I think that's what this is
 		if ( pPhysObj )
 		{
 			if ( pPhysObj->GetGameFlags() & FVPHYSICS_PLAYER_HELD )
 				return;
 		}
 
-		vecStart.z = mv->GetAbsOrigin().z + player->GetViewOffset().z + WATERJUMP_HEIGHT; 
+		vecStart.z = mv->GetAbsOrigin().z + player->GetViewOffset().z + WATERJUMP_HEIGHT;  //The absolute origin of the player plus the difference between their origin and view PLUS 8.
 		VectorMA( vecStart, 24.0f, flatforward, vecEnd );
 		VectorMA( vec3_origin, -50.0f, tr.plane.normal, player->m_vecWaterJumpVel );
 
-		TracePlayerBBox( vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr );
+		TracePlayerBBox( vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr ); //Now it's checking higher up to see if the area above that wall is clear.
 		if ( tr.fraction == 1.0 )		// open at eye level
 		{
 			// Now trace down to see if we would actually land on a standable surface.
-			VectorCopy( vecEnd, vecStart );
+			VectorCopy( vecEnd, vecStart ); //vecStart now has vecEnd's info.
 			vecEnd.z -= 1024.0f;
 			TracePlayerBBox( vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr );
-			if ( ( tr.fraction < 1.0f ) && ( tr.plane.normal.z >= 0.7 ) )
+			if ( ( tr.fraction < 1.0f ) && ( tr.plane.normal.z >= 0.7 ) ) //I assume tr.plane.normal. z has to be greater than or equal to 0.7, although I don't know what the hell this has to do w/ an incline
 			{
 				mv->m_vecVelocity[2] = 256.0f;			// Push up
 				mv->m_nOldButtons |= IN_JUMP;		// Don't jump again until released
@@ -1347,6 +1347,17 @@ void CGameMovement::CheckWaterJump( void )
 			}
 		}
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CGameMovement::CheckClimb(void)
+{
+	
+
+
+
 }
 
 //-----------------------------------------------------------------------------

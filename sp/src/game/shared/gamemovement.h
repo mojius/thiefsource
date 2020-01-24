@@ -91,6 +91,8 @@ protected:
 
 	virtual void	CheckWaterJump(void );
 
+	virtual void	CheckClimb(void);
+
 	virtual void	WaterMove( void );
 
 	void			WaterJump( void );
