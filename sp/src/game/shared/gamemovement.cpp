@@ -1281,7 +1281,7 @@ void CGameMovement::CheckWaterJump( void )
 	Vector	flatvelocity;
 	float curspeed;
 
-	AngleVectors( mv->m_vecViewAngles, &forward );  // Determine movement angles. I wanna say this gets a vector from where the player is looking/facing?
+	AngleVectors( mv->m_vecViewAngles, &forward );  // Determine movement angles. Store looking angles in a vector.
 
 	// Already water jumping.
 	if (player->m_flWaterJumpTime)
@@ -1292,21 +1292,21 @@ void CGameMovement::CheckWaterJump( void )
 		return; // only hop out if we are moving up
 
 	// See if we are backing up
-	flatvelocity[0] = mv->m_vecVelocity[0];
-	flatvelocity[1] = mv->m_vecVelocity[1];
-	flatvelocity[2] = 0;
+	flatvelocity[0] = mv->m_vecVelocity[0]; //Setting the x to the player's x velocity
+	flatvelocity[1] = mv->m_vecVelocity[1];	//Setting the y to the player's velocity
+	flatvelocity[2] = 0; //Setting the z to zero because it doesn't matter
 
 	// Must be moving
-	curspeed = VectorNormalize( flatvelocity );
+	curspeed = VectorNormalize( flatvelocity ); //Giving the entire flatvelocity vector a magnitude of 1
 	
 	// see if near an edge
-	flatforward[0] = forward[0];
-	flatforward[1] = forward[1];
-	flatforward[2] = 0;
-	VectorNormalize (flatforward);
+	flatforward[0] = forward[0]; //flatforward's x vector becomes the x of the vector of where the player is looking
+	flatforward[1] = forward[1]; //flatforward's y vector becomes the y of the vector of where the player is looking
+	flatforward[2] = 0;			//Flatforward's z vector is still zero, because it DOESNT MATTER :O
+	VectorNormalize (flatforward) ; //Make this vector magnitude of 1
 
 	// Are we backing into water from steps or something?  If so, don't pop forward
-	if ( curspeed != 0.0 && ( DotProduct( flatvelocity, flatforward ) < 0.0 ) )
+	if ( curspeed != 0.0 && ( DotProduct( flatvelocity, flatforward ) < 0.0 ) ) //If the player is at a nonzero x/y speed and their looking angle does not match their viewing angle,
 		return;
 
 	Vector vecStart;
@@ -1336,7 +1336,7 @@ void CGameMovement::CheckWaterJump( void )
 		{
 			// Now trace down to see if we would actually land on a standable surface.
 			VectorCopy( vecEnd, vecStart ); //vecStart now has vecEnd's info.
-			vecEnd.z -= 1024.0f;
+			vecEnd.z -= 1024.0f; //Its direction should now be straight down, or at least enough that we can trace one last time.
 			TracePlayerBBox( vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr );
 			if ( ( tr.fraction < 1.0f ) && ( tr.plane.normal.z >= 0.7 ) ) //I assume tr.plane.normal. z has to be greater than or equal to 0.7, although I don't know what the hell this has to do w/ an incline
 			{
@@ -1812,6 +1812,9 @@ void CGameMovement::AirMove( void )
 
 	// Now pull the base velocity back out.   Base velocity is set if you are on a moving object, like a conveyor (or maybe another monster?)
 	VectorSubtract( mv->m_vecVelocity, player->GetBaseVelocity(), mv->m_vecVelocity );
+
+
+	
 }
 
 

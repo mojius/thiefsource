@@ -1,4 +1,4 @@
-﻿Build started 1/24/2020 1:13:08 PM.
+﻿Build started 1/25/2020 8:38:57 PM.
      1>Project "C:\working\thiefsource\sp\src\game\client\client_episodic.vcxproj" on node 2 (Build target(s)).
      1>PreBuildEvent:
          if EXIST ..\..\..\game\mod_episodic\bin\.\client.dll for /f "delims=" %%A in ('attrib "..\..\..\game\mod_episodic\bin\.\client.dll"') do set valveTmpIsReadOnly="%%A"
@@ -558,4 +558,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:03.36
+Time Elapsed 00:00:02.00
