@@ -1349,16 +1349,6 @@ void CGameMovement::CheckWaterJump( void )
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CGameMovement::CheckClimb(void)
-{
-	
-
-
-
-}
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -1635,6 +1625,10 @@ void CGameMovement::Friction( void )
 	if (player->m_flWaterJumpTime)
 		return;
 
+	// If we are in Air Vault cycle, don't apply friction
+	if (player->m_bIsAirVaulting)
+		return;
+
 	// Calculate speed
 	speed = VectorLength( mv->m_vecVelocity );
 	
@@ -1702,6 +1696,9 @@ void CGameMovement::FinishGravity( void )
 	float ent_gravity;
 
 	if ( player->m_flWaterJumpTime )
+		return;
+
+	if (player->m_bIsAirVaulting)
 		return;
 
 	if ( player->GetGravity() )
@@ -1831,6 +1828,128 @@ bool CGameMovement::CanAccelerate()
 	return true;
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CGameMovement::CheckAirVault(void)
+{
+
+	Vector	flatforward;
+	Vector	forward;
+	Vector	flatvelocity;
+	float	curspeed;
+
+	AngleVectors(mv->m_vecViewAngles, &forward);  // Determine movement angles. Store looking angles in a vector.
+
+	// Already Air Vaulting.
+	if (player->m_bIsAirVaulting)
+		return;
+
+	// See if we are backing up
+	flatvelocity[0] = mv->m_vecVelocity[0]; //Setting the x to the player's x velocity
+	flatvelocity[1] = mv->m_vecVelocity[1];	//Setting the y to the player's velocity
+	flatvelocity[2] = 0; //Setting the z to zero because it doesn't matter
+
+	// Must be moving
+	curspeed = VectorNormalize(flatvelocity); //Giving the entire flatvelocity vector a magnitude of 1
+
+	// see if near an edge
+	flatforward[0] = forward[0]; //flatforward's x vector becomes the x of the vector of where the player is looking
+	flatforward[1] = forward[1]; //flatforward's y vector becomes the y of the vector of where the player is looking
+	flatforward[2] = 0;			//Flatforward's z vector is still zero, because it DOESNT MATTER :O
+	VectorNormalize(flatforward); //Make this vector magnitude of 1
+
+	if (curspeed != 0.0 && (DotProduct(flatvelocity, flatforward) < 0.0)) //If the player is at a nonzero x/y speed and their looking vector does not line up with their viewing vector,
+		return;
+
+	Vector vecStart;
+	// Start line trace at waist height (using the center of the player for this here)
+	vecStart = (mv->GetAbsOrigin() + (GetPlayerMins() + GetPlayerMaxs()) * 0.5);
+
+	Vector vecEnd;
+	VectorMA(vecStart, 2.0f, flatforward, vecEnd);
+
+	trace_t tr;
+	TracePlayerBBox(vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr);
+	//if (tr.fraction < 1.0)		// solid at waist, time less than 1 = hit something
+	//{
+	//	IPhysicsObject *pPhysObj = tr.m_pEnt->VPhysicsGetObject(); //Did you just run into a physics object??? I think that's what this is
+	//	if (pPhysObj)
+	//	{
+	//		if (pPhysObj->GetGameFlags() & FVPHYSICS_PLAYER_HELD)
+	//			return;
+	//	}
+
+		vecStart.z = mv->GetAbsOrigin().z + player->GetViewOffset().z + 24;  //The absolute origin of the player plus the difference between their origin and view PLUS 8.
+		VectorMA(vecStart, 2.0f, flatforward, vecEnd);
+		//VectorMA(vec3_origin, -50.0f, tr.plane.normal, player->m_vecWaterJumpVel);
+
+  		TracePlayerBBox(vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr); //Now it's checking higher up to see if the area above that wall is clear.
+		//if (tr.fraction == 1.0)		// open at eye level
+		{
+			// Now trace down to see if we would actually land on a standable surface.
+			VectorCopy(vecEnd, vecStart); //vecStart now has vecEnd's info.
+			vecEnd.z -= 100.0f; //Its direction should now be straight down, or at least enough that we can trace one last time.
+			TracePlayerBBox(vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr); //THE IMPORTANT TRACE!
+			if ((tr.fraction < 1.0f) && (tr.plane.normal.z >= 0.7)) //I assume tr.plane.normal. z has to be greater than or equal to 0.7, although I don't know what the hell this has to do w/ an incline
+			{
+				//Play the climbing animation
+				mv->m_nOldButtons |= IN_JUMP;		// Don't jump again until released - do I change this?
+   				player->m_bIsAirVaulting = true;	// Do this for... the bottom of the ledge that the player can walk on MINUS the bottom of their hitbox.
+				player->m_flAirVaultDist = tr.endpos.z;// -(mv->GetAbsOrigin().z + GetPlayerMins().z);
+
+			}
+		}
+
+	}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CGameMovement::AirVault(void)
+{
+	DevMsg("PlayerMins is %.2f\n", GetPlayerMins().z);
+	DevMsg("PlayerMaxs is %.2f\n", GetPlayerMaxs().z);
+	DevMsg("Player abs origin is %.2f\n", player->GetAbsOrigin().z);
+	DevMsg("air vault distance is %.2f\n", player->m_flAirVaultDist);
+
+	//if (player->m_flAirVaultDist <= 0 || !(mv->m_nOldButtons & IN_JUMP) || player->GetGroundEntity() != NULL)
+	//{
+	//	player->m_bIsAirVaulting = false;
+ //		player->m_flAirVaultDist = 0;
+	//	return;
+	//}
+
+	if (player->m_flAirVaultDist <= player->GetAbsOrigin().z)
+	{
+		player->m_bIsAirVaulting = false;
+		player->m_flAirVaultDist = 0;
+		return;
+	}
+
+	if (!(mv->m_nOldButtons & IN_JUMP))
+	{
+		player->m_bIsAirVaulting = false;
+		player->m_flAirVaultDist = 0;
+		return;
+	}
+
+	if (player->GetGroundEntity() != NULL)
+
+	{
+		player->m_bIsAirVaulting = false;
+		player->m_flAirVaultDist = 0;
+		return;
+	}
+
+	//if (!player->m_bIsAirVaulting || player->m_flAirVaultDist <= 0)
+	//	return;
+
+	mv->m_vecVelocity[2] = 50;
+	mv->m_vecVelocity[1] = 0;
+	mv->m_vecVelocity[0] = 0;
+
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -2063,10 +2182,19 @@ void CGameMovement::WalkMove( void )
 //-----------------------------------------------------------------------------
 void CGameMovement::FullWalkMove( )
 {
-	if ( !CheckWater() ) 
+
+	if ((mv->m_nOldButtons & IN_JUMP) && player->GetGroundEntity() == NULL && !player->m_bIsAirVaulting)
+	{
+		CheckAirVault();
+		DevMsg("AirVault checked!\n");
+	}
+
+
+	if (!CheckWater() || player->m_bIsAirVaulting == false)
 	{
 		StartGravity();
 	}
+
 
 	// If we are leaping out of the water, just update the counters.
 	if (player->m_flWaterJumpTime)
@@ -2075,8 +2203,14 @@ void CGameMovement::FullWalkMove( )
 		TryPlayerMove();
 		// See if we are still in water?
 		CheckWater();
-		return;
+		return;	
 	}
+
+	if (player->m_bIsAirVaulting == true)
+	{
+		AirVault();
+	}
+
 
 	// If we are swimming in the water, see if we are nudging against a place we can jump up out
 	//  of, and, if so, start out jump.  Otherwise, if we are not moving up, then reset jump timer to 0
@@ -2113,7 +2247,8 @@ void CGameMovement::FullWalkMove( )
 		// If we are on ground, no downward velocity.
 		if ( player->GetGroundEntity() != NULL )
 		{
-			mv->m_vecVelocity[2] = 0;			
+			mv->m_vecVelocity[2] = 0;
+
 		}
 	}
 	else
@@ -2122,7 +2257,7 @@ void CGameMovement::FullWalkMove( )
 		// Was jump button pressed?
 		if (mv->m_nButtons & IN_JUMP)
 		{
- 			CheckJumpButton();
+			CheckJumpButton();
 		}
 		else
 		{
@@ -2156,7 +2291,7 @@ void CGameMovement::FullWalkMove( )
 		CheckVelocity();
 
 		// Add any remaining gravitational component.
-		if ( !CheckWater() )
+		if (!CheckWater() || player->m_bIsAirVaulting == false)
 		{
 			FinishGravity();
 		}
@@ -2168,6 +2303,8 @@ void CGameMovement::FullWalkMove( )
 		}
 		CheckFalling();
 	}
+
+
 
 	if  ( ( m_nOldWaterLevel == WL_NotInWater && player->GetWaterLevel() != WL_NotInWater ) ||
 		  ( m_nOldWaterLevel != WL_NotInWater && player->GetWaterLevel() == WL_NotInWater ) )
@@ -2398,6 +2535,7 @@ bool CGameMovement::CheckJumpButton( void )
 		mv->m_nOldButtons |= IN_JUMP ;	// don't jump again until released
 		return false;
 	}
+
 
 	// See if we are waterjumping.  If so, decrement count and return.
 	if (player->m_flWaterJumpTime)
@@ -3134,6 +3272,9 @@ void CGameMovement::AddGravity( void )
 	float ent_gravity;
 
 	if ( player->m_flWaterJumpTime )
+		return;
+
+	if (player->m_bIsAirVaulting)
 		return;
 
 	if (player->GetGravity())

@@ -1,4 +1,4 @@
-﻿Build started 1/16/2020 2:25:24 PM.
+﻿Build started 1/28/2020 11:42:47 AM.
      1>Project "C:\working\thiefsource\sp\src\raytrace\raytrace.vcxproj" on node 5 (Rebuild target(s)).
      1>PreBuildEvent:
          if EXIST ..\lib\public\.\raytrace.lib ( for /f "delims=" %%A in ('attrib "..\lib\public\.\raytrace.lib"') do set valveTmpIsReadOnly="%%A"
@@ -29,4 +29,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:03.24
+Time Elapsed 00:00:03.46

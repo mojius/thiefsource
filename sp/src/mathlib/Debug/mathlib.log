@@ -1,4 +1,4 @@
-﻿Build started 1/16/2020 2:25:24 PM.
+﻿Build started 1/28/2020 11:42:47 AM.
      1>Project "C:\working\thiefsource\sp\src\mathlib\mathlib.vcxproj" on node 2 (Rebuild target(s)).
      1>PreBuildEvent:
          if EXIST ..\lib\public\.\mathlib.lib ( for /f "delims=" %%A in ('attrib "..\lib\public\.\mathlib.lib"') do set valveTmpIsReadOnly="%%A"
@@ -67,4 +67,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:06.70
+Time Elapsed 00:00:07.19
