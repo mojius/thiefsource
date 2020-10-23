@@ -1802,13 +1802,21 @@ void CGameMovement::AirMove( void )
 	
 	AirAccelerate( wishdir, wishspeed, sv_airaccelerate.GetFloat() );
 
-	// Add in any base velocity to the current velocity.
-	VectorAdd(mv->m_vecVelocity, player->GetBaseVelocity(), mv->m_vecVelocity );
+	if (!player->m_bIsAirVaulting)
+	{
+		// Add in any base velocity to the current velocity.
+		VectorAdd(mv->m_vecVelocity, player->GetBaseVelocity(), mv->m_vecVelocity);
 
-	TryPlayerMove();
+		TryPlayerMove();
 
-	// Now pull the base velocity back out.   Base velocity is set if you are on a moving object, like a conveyor (or maybe another monster?)
-	VectorSubtract( mv->m_vecVelocity, player->GetBaseVelocity(), mv->m_vecVelocity );
+		// Now pull the base velocity back out.   Base velocity is set if you are on a moving object, like a conveyor (or maybe another monster?)
+		VectorSubtract(mv->m_vecVelocity, player->GetBaseVelocity(), mv->m_vecVelocity);
+	}
+	else
+	{
+		TryPlayerMove();
+	}
+
 
 
 	
@@ -1845,6 +1853,11 @@ void CGameMovement::CheckAirVault(void)
 	if (player->m_bIsAirVaulting)
 		return;
 
+#ifndef CLIENT_DLL
+	if (player->IsDead())
+		return;
+#endif
+
 	// See if we are backing up
 	flatvelocity[0] = mv->m_vecVelocity[0]; //Setting the x to the player's x velocity
 	flatvelocity[1] = mv->m_vecVelocity[1];	//Setting the y to the player's velocity
@@ -1859,19 +1872,28 @@ void CGameMovement::CheckAirVault(void)
 	flatforward[2] = 0;			//Flatforward's z vector is still zero, because it DOESNT MATTER :O
 	VectorNormalize(flatforward); //Make this vector magnitude of 1
 
-	if (curspeed != 0.0 && (DotProduct(flatvelocity, flatforward) < 0.0)) //If the player is at a nonzero x/y speed and their looking vector does not line up with their viewing vector,
+	if (curspeed != 0.0 && (DotProduct(flatvelocity, flatforward) < 0.0)) //If the player is at a nonzero x/y speed and their moving vector does not line up with their viewing vector,
 		return;
 
 	Vector vecStart;
 	// Start line trace at waist height (using the center of the player for this here)
-	vecStart = (mv->GetAbsOrigin() + (GetPlayerMins() + GetPlayerMaxs()) * 0.5);
-
+	vecStart = (mv->GetAbsOrigin() + (GetPlayerMins() + GetPlayerMaxs() * 0.5));
+	DevMsg("Okay, so we have vecStart's z: %.2\n", vecStart.z);
 	Vector vecEnd;
 	VectorMA(vecStart, 2.0f, flatforward, vecEnd);
 
 	trace_t tr;
 	TracePlayerBBox(vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr);
-	//if (tr.fraction < 1.0)		// solid at waist, time less than 1 = hit something
+	//DevMsg("Trace X: %.2f", tr.plane.normal.x);
+	//DevMsg("Trace Y: %.2f", tr.plane.normal.y);
+	//DevMsg("Trace Z: %.2f", tr.plane.normal.z);
+
+	player->m_vecLooking.x = tr.plane.normal.x;
+	player->m_vecLooking.y = tr.plane.normal.y;
+	player->m_vecLooking.z = tr.plane.normal.z;
+
+
+	//if (tr.fraction < 1.0)// solid at waist, time less than 1 = hit something
 	//{
 	//	IPhysicsObject *pPhysObj = tr.m_pEnt->VPhysicsGetObject(); //Did you just run into a physics object??? I think that's what this is
 	//	if (pPhysObj)
@@ -1879,39 +1901,97 @@ void CGameMovement::CheckAirVault(void)
 	//		if (pPhysObj->GetGameFlags() & FVPHYSICS_PLAYER_HELD)
 	//			return;
 	//	}
+	
+	vecStart.z += 37;
+	DevMsg("Now vecStart's z is: %.2\n", vecStart.z);
+	//The absolute origin of the player plus the difference between their origin and view PLUS 24.
 
-		vecStart.z = mv->GetAbsOrigin().z + player->GetViewOffset().z + 24;  //The absolute origin of the player plus the difference between their origin and view PLUS 8.
-		VectorMA(vecStart, 2.0f, flatforward, vecEnd);
+		VectorMA(vecStart, 1.0f, flatforward, vecEnd);
 		//VectorMA(vec3_origin, -50.0f, tr.plane.normal, player->m_vecWaterJumpVel);
 
   		TracePlayerBBox(vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr); //Now it's checking higher up to see if the area above that wall is clear.
-		//if (tr.fraction == 1.0)		// open at eye level
+		if (tr.fraction == 1.0)		// open at eye level
 		{
 			// Now trace down to see if we would actually land on a standable surface.
 			VectorCopy(vecEnd, vecStart); //vecStart now has vecEnd's info.
-			vecEnd.z -= 100.0f; //Its direction should now be straight down, or at least enough that we can trace one last time.
-			TracePlayerBBox(vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr); //THE IMPORTANT TRACE!
+			vecEnd.z -= 37; //Its direction should now be straight down, or at least enough that we can trace one last time.
+			TracePlayerBBox(vecStart, vecEnd, PlayerSolidMask(true), COLLISION_GROUP_PLAYER_MOVEMENT, tr); //THE IMPORTANT TRACE!
 			if ((tr.fraction < 1.0f) && (tr.plane.normal.z >= 0.7)) //I assume tr.plane.normal. z has to be greater than or equal to 0.7, although I don't know what the hell this has to do w/ an incline
 			{
 				//Play the climbing animation
-				mv->m_nOldButtons |= IN_JUMP;		// Don't jump again until released - do I change this?
    				player->m_bIsAirVaulting = true;	// Do this for... the bottom of the ledge that the player can walk on MINUS the bottom of their hitbox.
 				player->m_flAirVaultDist = tr.endpos.z;// -(mv->GetAbsOrigin().z + GetPlayerMins().z);
-
+				player->m_flAirVaultPauseTime = 30.0f;
+				player->GetActiveWeapon()->Holster(nullptr);
+				AirVaultRestrict();
+				
 			}
 		}
 
 	}
 
+
+
 //-----------------------------------------------------------------------------
-// Purpose: 
+// Purpose: Limit Player Input when airvaulting
+//-----------------------------------------------------------------------------
+void CGameMovement::AirVaultRestrict(void)
+{
+	#ifndef CLIENT_DLL
+		player->ForceButtons(IN_DUCK);
+		player->DisableButtons(IN_ATTACK);
+		player->DisableButtons(IN_FORWARD);
+		player->DisableButtons(IN_BACK);
+		player->DisableButtons(IN_MOVELEFT);
+		player->DisableButtons(IN_MOVERIGHT);
+	#endif
+}
+
+void CGameMovement::CheckAirVaultLooking(void)
+{
+	#ifndef CLIENT_DLL
+		
+		float playerLook = (90 * (player->m_vecLooking.x + 1) * (-1 * Sign(player->m_vecLooking.y)));
+		
+		/*DevMsg("PlayerLook is %.2f\n", playerLook);
+		DevMsg("PlayerLook + 85 is %.2f\n", playerLook + 90);
+		DevMsg("PlayerLook - 85 is %.2f\n", playerLook - 90);*/
+
+
+		float flAngleDiff = AngleDiff(mv->m_vecViewAngles.y, playerLook);
+		flAngleDiff = clamp(flAngleDiff, -90, 90);
+		QAngle temp = QAngle(mv->m_vecViewAngles.x, playerLook + flAngleDiff, mv->m_vecViewAngles.z);
+		player->SnapEyeAngles(temp);
+
+	#endif
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Stop limiting player input
+//-----------------------------------------------------------------------------
+void CGameMovement::AirVaultUnrestrict(void)
+{
+	#ifndef CLIENT_DLL
+		player->UnforceButtons(IN_DUCK);
+		player->EnableButtons(IN_ATTACK);
+		player->EnableButtons(IN_FORWARD);
+		player->EnableButtons(IN_BACK);
+		player->EnableButtons(IN_MOVELEFT);
+		player->EnableButtons(IN_MOVERIGHT);
+	#endif
+}
+//-----------------------------------------------------------------------------
+// Purpose: Perform the actual airvault action
 //-----------------------------------------------------------------------------
 void CGameMovement::AirVault(void)
 {
-	DevMsg("PlayerMins is %.2f\n", GetPlayerMins().z);
-	DevMsg("PlayerMaxs is %.2f\n", GetPlayerMaxs().z);
-	DevMsg("Player abs origin is %.2f\n", player->GetAbsOrigin().z);
-	DevMsg("air vault distance is %.2f\n", player->m_flAirVaultDist);
+
+	//CheckAirVaultLooking();
+
+
+	//DevMsg("PlayerMaxs is %.2f\n", GetPlayerMaxs().z);
+	//DevMsg("Player abs origin is %.2f\n", player->GetAbsOrigin().z);
+	//DevMsg("air vault distance is %.2f\n", player->m_flAirVaultDist);
 
 	//if (player->m_flAirVaultDist <= 0 || !(mv->m_nOldButtons & IN_JUMP) || player->GetGroundEntity() != NULL)
 	//{
@@ -1922,33 +2002,43 @@ void CGameMovement::AirVault(void)
 
 	if (player->m_flAirVaultDist <= player->GetAbsOrigin().z)
 	{
+		mv->m_vecVelocity[2] = 0;
+		mv->m_vecVelocity = player->m_vecLooking * -150;
 		player->m_bIsAirVaulting = false;
 		player->m_flAirVaultDist = 0;
+		player->m_flAirVaultPauseTime = 30.0f;
+		AirVaultUnrestrict();
+		player->GetActiveWeapon()->Deploy();
 		return;
+
 	}
 
-	if (!(mv->m_nOldButtons & IN_JUMP))
+	if (!(mv->m_nOldButtons & IN_JUMP) || player->GetGroundEntity() != NULL)
 	{
 		player->m_bIsAirVaulting = false;
 		player->m_flAirVaultDist = 0;
+		player->m_flAirVaultPauseTime = 30.0f;
+		AirVaultUnrestrict();
+		player->GetActiveWeapon()->Deploy();
 		return;
 	}
 
-	if (player->GetGroundEntity() != NULL)
 
+	if (player->m_flAirVaultPauseTime < 0)
 	{
-		player->m_bIsAirVaulting = false;
-		player->m_flAirVaultDist = 0;
-		return;
+		mv->m_vecVelocity[2] = 90;
+		mv->m_vecVelocity[1] = 0;
+		mv->m_vecVelocity[0] = 0;
+
 	}
+	else
+	{
+		mv->m_vecVelocity[2] = 0;
+		mv->m_vecVelocity[1] = 0;
+		mv->m_vecVelocity[0] = 0;
+		player->m_flAirVaultPauseTime -= (70 * gpGlobals->frametime);
 
-	//if (!player->m_bIsAirVaulting || player->m_flAirVaultDist <= 0)
-	//	return;
-
-	mv->m_vecVelocity[2] = 50;
-	mv->m_vecVelocity[1] = 0;
-	mv->m_vecVelocity[0] = 0;
-
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -2180,8 +2270,13 @@ void CGameMovement::WalkMove( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CGameMovement::FullWalkMove( )
+void CGameMovement::FullWalkMove()
 {
+	DevMsg("Player View Offset Z: %.2f\n", player->GetViewOffset().z);
+	DevMsg("GetPlayerMaxs: %.2f\n", player->GetPlayerMaxs().z);
+	//DevMsg("VecViewAngles X: %.2f\n", mv->m_vecViewAngles.x);
+	//DevMsg("VecViewAngles Y: %.2f\n", mv->m_vecViewAngles.y);
+	//DevMsg("VecViewAngles Z: %.2f\n", mv->m_vecViewAngles.z);
 
 	if ((mv->m_nOldButtons & IN_JUMP) && player->GetGroundEntity() == NULL && !player->m_bIsAirVaulting)
 	{
@@ -2274,6 +2369,12 @@ void CGameMovement::FullWalkMove( )
 
 		// Make sure velocity is valid.
 		CheckVelocity();
+
+		if (player->m_bIsAirVaulting == true)
+		{
+			mv->m_flSideMove = 0;
+			mv->m_flForwardMove = 0;
+		}
 
 		if (player->GetGroundEntity() != NULL)
 		{
@@ -4563,7 +4664,7 @@ void CGameMovement::Duck( void )
 			{
 				player->m_Local.m_flDucktime = GAMEMOVEMENT_DUCK_TIME;
 				player->m_Local.m_bDucking = true;
-			}
+			}	
 			
 			// The player is in duck transition and not duck-jumping.
 			if ( player->m_Local.m_bDucking && !bDuckJump && !bDuckJumpTime )

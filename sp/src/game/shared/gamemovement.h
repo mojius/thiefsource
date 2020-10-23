@@ -95,6 +95,12 @@ protected:
 
 	virtual void	AirVault(void);
 
+	virtual void	AirVaultRestrict(void);
+
+	virtual void	CheckAirVaultLooking(void);
+
+	virtual void	AirVaultUnrestrict(void);
+
 	virtual void	WaterMove( void );
 
 	void			WaterJump( void );

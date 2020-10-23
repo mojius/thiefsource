@@ -34,6 +34,9 @@
     <Filter Include="Logical Entities">
       <UniqueIdentifier>{aec8901e-63ee-415e-966a-cd2af4a359fb}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Success or Doom">
+      <UniqueIdentifier>{90e1ff72-1511-4ec0-b072-99b44d880ed5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Library Include="..\..\lib\public\choreoobjects.lib">
@@ -3510,6 +3513,9 @@
     </ClCompile>
     <ClCompile Include="sdk_logicalentity.cpp">
       <Filter>Logical Entities</Filter>
+    </ClCompile>
+    <ClCompile Include="lightintensity.cpp">
+      <Filter>Success or Doom</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

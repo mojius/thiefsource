@@ -1092,6 +1092,7 @@ exit 1
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="lightglow.cpp" />
+    <ClCompile Include="lightintensity.cpp" />
     <ClCompile Include="lights.cpp" />
     <ClCompile Include="logic_achievement.cpp" />
     <ClCompile Include="logic_measure_movement.cpp" />

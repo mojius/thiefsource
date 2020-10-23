@@ -1074,6 +1074,8 @@ private:
 	float					m_flWaterJumpTime;  // used to be called teleport_time
 	bool					m_bIsAirVaulting; //Let's see if this is what we want.
 	float					m_flAirVaultDist;
+	Vector					m_vecLooking;
+	float					m_flAirVaultPauseTime;
 	Vector					m_vecWaterJumpVel;
 	int						m_nImpulse;
 	float					m_flSwimSoundTime;
