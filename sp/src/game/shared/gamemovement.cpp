@@ -1842,12 +1842,12 @@ bool CGameMovement::CanAccelerate()
 void CGameMovement::CheckAirVault(void)
 {
 
-	Vector	flatforward;
-	Vector	forward;
+	Vector	flatLookingAngleVec;
+	Vector	lookingAngleVec;
 	Vector	flatvelocity;
 	float	curspeed;
 
-	AngleVectors(mv->m_vecViewAngles, &forward);  // Determine movement angles. Store looking angles in a vector.
+	AngleVectors(mv->m_vecViewAngles, &lookingAngleVec);  // Determine movement angles. Store looking angles in a vector.
 
 	// Already Air Vaulting.
 	if (player->m_bIsAirVaulting)
@@ -1856,31 +1856,35 @@ void CGameMovement::CheckAirVault(void)
 #ifndef CLIENT_DLL
 	if (player->IsDead())
 		return;
+
+	if (!player->GetUseEntity() == NULL)
+		return;
+
 #endif
+
 
 	// See if we are backing up
 	flatvelocity[0] = mv->m_vecVelocity[0]; //Setting the x to the player's x velocity
 	flatvelocity[1] = mv->m_vecVelocity[1];	//Setting the y to the player's velocity
 	flatvelocity[2] = 0; //Setting the z to zero because it doesn't matter
 
-	// Must be moving
 	curspeed = VectorNormalize(flatvelocity); //Giving the entire flatvelocity vector a magnitude of 1
 
-	// see if near an edge
-	flatforward[0] = forward[0]; //flatforward's x vector becomes the x of the vector of where the player is looking
-	flatforward[1] = forward[1]; //flatforward's y vector becomes the y of the vector of where the player is looking
-	flatforward[2] = 0;			//Flatforward's z vector is still zero, because it DOESNT MATTER :O
-	VectorNormalize(flatforward); //Make this vector magnitude of 1
+	flatLookingAngleVec[0] = lookingAngleVec[0]; //flatforward's x vector becomes the x of the vector of where the player is looking
+	flatLookingAngleVec[1] = lookingAngleVec[1]; //flatforward's y vector becomes the y of the vector of where the player is looking
+	flatLookingAngleVec[2] = 0;			//Flatforward's z vector is still zero, because it DOESNT MATTER :O
+	VectorNormalize(flatLookingAngleVec); //Make this vector magnitude of 1
 
-	if (curspeed != 0.0 && (DotProduct(flatvelocity, flatforward) < 0.0)) //If the player is at a nonzero x/y speed and their moving vector does not line up with their viewing vector,
+	if (curspeed != 0.0 && (DotProduct(flatvelocity, flatLookingAngleVec) < 0.0)) //If the player is at a nonzero x/y speed and their moving vector does not line up with their viewing vector,
 		return;
 
 	Vector vecStart;
 	// Start line trace at waist height (using the center of the player for this here)
-	vecStart = (mv->GetAbsOrigin() + (GetPlayerMins() + GetPlayerMaxs() * 0.5));
+	vecStart = (mv->GetAbsOrigin() + ((GetPlayerMins() + GetPlayerMaxs()) * 0.5));
 	DevMsg("Okay, so we have vecStart's z: %.2\n", vecStart.z);
 	Vector vecEnd;
-	VectorMA(vecStart, 2.0f, flatforward, vecEnd);
+	//VectorMA is taking vecEnd, giving it the coords of vecStart, and adding (the flat looking angles MULTIPLIED by x)
+	VectorMA(vecStart, 24.0f, flatLookingAngleVec, vecEnd);
 
 	trace_t tr;
 	TracePlayerBBox(vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr);
@@ -1892,7 +1896,6 @@ void CGameMovement::CheckAirVault(void)
 	player->m_vecLooking.y = tr.plane.normal.y;
 	player->m_vecLooking.z = tr.plane.normal.z;
 
-
 	//if (tr.fraction < 1.0)// solid at waist, time less than 1 = hit something
 	//{
 	//	IPhysicsObject *pPhysObj = tr.m_pEnt->VPhysicsGetObject(); //Did you just run into a physics object??? I think that's what this is
@@ -1902,11 +1905,12 @@ void CGameMovement::CheckAirVault(void)
 	//			return;
 	//	}
 	
-	vecStart.z += 37;
-	DevMsg("Now vecStart's z is: %.2\n", vecStart.z);
 	//The absolute origin of the player plus the difference between their origin and view PLUS 24.
+	vecStart.z = mv->GetAbsOrigin().z + player->GetViewOffset().z; //37 is the minimum units a player can crouch into. Just in case you add that to this definition
+	DevMsg("Now vecStart's z is: %.2\n", vecStart.z);
 
-		VectorMA(vecStart, 1.0f, flatforward, vecEnd);
+
+		VectorMA(vecStart, 1.0f, flatLookingAngleVec, vecEnd);
 		//VectorMA(vec3_origin, -50.0f, tr.plane.normal, player->m_vecWaterJumpVel);
 
   		TracePlayerBBox(vecStart, vecEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, tr); //Now it's checking higher up to see if the area above that wall is clear.
@@ -1922,7 +1926,8 @@ void CGameMovement::CheckAirVault(void)
    				player->m_bIsAirVaulting = true;	// Do this for... the bottom of the ledge that the player can walk on MINUS the bottom of their hitbox.
 				player->m_flAirVaultDist = tr.endpos.z;// -(mv->GetAbsOrigin().z + GetPlayerMins().z);
 				player->m_flAirVaultPauseTime = 30.0f;
-				player->GetActiveWeapon()->Holster(nullptr);
+				if (player->GetActiveWeapon() != nullptr)
+					player->GetActiveWeapon()->Holster(nullptr);
 				AirVaultRestrict();
 				
 			}
@@ -1986,7 +1991,7 @@ void CGameMovement::AirVaultUnrestrict(void)
 void CGameMovement::AirVault(void)
 {
 
-	//CheckAirVaultLooking();
+	CheckAirVaultLooking();
 
 
 	//DevMsg("PlayerMaxs is %.2f\n", GetPlayerMaxs().z);
@@ -2008,7 +2013,8 @@ void CGameMovement::AirVault(void)
 		player->m_flAirVaultDist = 0;
 		player->m_flAirVaultPauseTime = 30.0f;
 		AirVaultUnrestrict();
-		player->GetActiveWeapon()->Deploy();
+		if (player->GetActiveWeapon() != nullptr)
+			player->GetActiveWeapon()->Deploy();
 		return;
 
 	}
@@ -2019,7 +2025,8 @@ void CGameMovement::AirVault(void)
 		player->m_flAirVaultDist = 0;
 		player->m_flAirVaultPauseTime = 30.0f;
 		AirVaultUnrestrict();
-		player->GetActiveWeapon()->Deploy();
+		if (player->GetActiveWeapon() != nullptr)
+			player->GetActiveWeapon()->Deploy();
 		return;
 	}
 
